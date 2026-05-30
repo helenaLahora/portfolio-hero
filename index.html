@@ -2,9 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Apple-Level Text Warp</title>
+  <title>Centered Apple Warp</title>
 
-  <!-- FONT -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -17,6 +16,7 @@
       overflow: hidden;
       height: 100%;
     }
+
     #container {
       width: 100%;
       height: 100%;
@@ -25,154 +25,166 @@
 </head>
 
 <body>
-  <div id="container"></div>
+<div id="container"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.0/dist/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.0/dist/pixi.min.js"></script>
 
-  <script>
-  (async () => {
+<script>
+(async () => {
 
-    // -----------------------------
-    // WAIT FOR FONT (critical)
-    // -----------------------------
-    await document.fonts.load('64px "Instrument Serif"');
-    await document.fonts.ready;
+  // ----------------------------
+  // FONT LOAD
+  // ----------------------------
+  await document.fonts.load('64px "Instrument Serif"');
+  await document.fonts.ready;
 
-    // -----------------------------
-    // PIXI APP
-    // -----------------------------
-    const app = new PIXI.Application({
-      resizeTo: window,
-      backgroundColor: 0xffffff,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true
-    });
+  // ----------------------------
+  // PIXI APP
+  // ----------------------------
+  const app = new PIXI.Application({
+    resizeTo: window,
+    backgroundColor: 0xffffff,
+    antialias: true,
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true
+  });
 
-    document.getElementById("container").appendChild(app.view);
+  document.getElementById("container").appendChild(app.view);
 
-    // -----------------------------
-    // TEXT CONFIG
-    // -----------------------------
-    const lines = [
-      "Product & Design System Designer",
-      "Focused on scalable systems",
-      "& complex platforms."
-    ];
+  // ----------------------------
+  // TEXT
+  // ----------------------------
+  const lines = [
+    "Product & Design System Designer",
+    "Focused on scalable systems",
+    "& complex platforms."
+  ];
 
-    const style = new PIXI.TextStyle({
-      fontFamily: "Instrument Serif",
-      fontSize: 64,
-      fill: "#ff7730"
-    });
+  const style = new PIXI.TextStyle({
+    fontFamily: "Instrument Serif",
+    fontSize: 64,
+    fill: "#ff7730"
+  });
 
-    const chars = [];
-    const data = [];
+  const chars = [];
+  const data = [];
 
-    // layout
-    let y = 160;
+  const lineContainers = [];
 
-    for (let line of lines) {
-      let x = 120;
+  // ----------------------------
+  // BUILD CENTERED LAYOUT
+  // ----------------------------
+  const startY = 0;
 
-      for (let char of line) {
-        const t = new PIXI.Text(char === " " ? " " : char, style);
+  for (let i = 0; i < lines.length; i++) {
 
-        t.x = x;
-        t.y = y;
+    const line = new PIXI.Container();
+    const lineChars = [];
 
-        app.stage.addChild(t);
+    let totalWidth = 0;
 
-        chars.push(t);
+    // first pass: create chars + measure width
+    for (let char of lines[i]) {
+      const t = new PIXI.Text(char === " " ? " " : char, style);
 
-        data.push({
-          baseX: x,
-          baseY: y,
-          vx: 0,
-          vy: 0
-        });
+      line.addChild(t);
+      lineChars.push(t);
 
-        x += 34;
-      }
-
-      y += 92;
+      totalWidth += t.width;
     }
 
-    // -----------------------------
-    // MOUSE WITH SMOOTH INERTIA
-    // -----------------------------
-    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    const smoothMouse = { x: mouse.x, y: mouse.y };
+    // center line horizontally
+    let x = -totalWidth / 2;
+    const y = startY + i * 92;
 
-    window.addEventListener("mousemove", (e) => {
-      mouse.x = e.clientX;
-      mouse.y = e.clientY;
-    });
+    for (let j = 0; j < lineChars.length; j++) {
+      const t = lineChars[j];
 
-    // -----------------------------
-    // PARAMETERS (APPLE STYLE TUNED)
-    // -----------------------------
-    const config = {
-      radius: 420,
-      push: 0.55,
-      scale: 0.65,
-      smoothing: 0.12,
-      returnEase: 0.08
-    };
+      t.x = x;
+      t.y = y;
 
-    // -----------------------------
-    // ANIMATION LOOP
-    // -----------------------------
-    app.ticker.add(() => {
+      data.push({
+        baseX: x,
+        baseY: y,
+        vx: 0,
+        vy: 0
+      });
 
-      // smooth cursor (lag = luxury feel)
-      smoothMouse.x += (mouse.x - smoothMouse.x) * config.smoothing;
-      smoothMouse.y += (mouse.y - smoothMouse.y) * config.smoothing;
+      chars.push(t);
 
-      for (let i = 0; i < chars.length; i++) {
-        const c = chars[i];
-        const d = data[i];
+      x += t.width; // NATURAL kerning (no fake spacing)
+    }
 
-        const dx = d.baseX - smoothMouse.x;
-        const dy = d.baseY - smoothMouse.y;
+    line.x = app.screen.width / 2;
+    line.y = app.screen.height / 2;
 
-        const dist = Math.sqrt(dx * dx + dy * dy);
+    app.stage.addChild(line);
+    lineContainers.push(line);
+  }
 
-        const norm = Math.min(dist / config.radius, 1);
+  // ----------------------------
+  // MOUSE
+  // ----------------------------
+  const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  const smooth = { x: mouse.x, y: mouse.y };
 
-        // smooth falloff curve (Apple-style easing)
-        const falloff = Math.pow(1 - norm, 3);
+  window.addEventListener("mousemove", (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
 
-        // target displacement (fluid field)
-        const targetVX = dx * config.push * falloff;
-        const targetVY = dy * config.push * falloff;
+  // ----------------------------
+  // MOTION CONFIG (Apple feel)
+  // ----------------------------
+  const config = {
+    radius: 420,
+    push: 0.55,
+    scale: 0.6,
+    smoothing: 0.12,
+    returnEase: 0.08
+  };
 
-        // spring physics (inertia)
-        d.vx += (targetVX - d.vx) * config.returnEase;
-        d.vy += (targetVY - d.vy) * config.returnEase;
+  // ----------------------------
+  // LOOP
+  // ----------------------------
+  app.ticker.add(() => {
 
-        // apply position
-        c.x = d.baseX + d.vx;
-        c.y = d.baseY + d.vy;
+    // smooth cursor
+    smooth.x += (mouse.x - smooth.x) * config.smoothing;
+    smooth.y += (mouse.y - smooth.y) * config.smoothing;
 
-        // depth scaling (breathing motion)
-        const scale = 1 + config.scale * falloff;
-        c.scale.set(scale);
+    for (let i = 0; i < chars.length; i++) {
+      const c = chars[i];
+      const d = data[i];
 
-        // subtle rotation (premium feel)
-        c.rotation = d.vx * 0.002;
-      }
-    });
+      const dx = d.baseX + app.screen.width / 2 - smooth.x;
+      const dy = d.baseY + app.screen.height / 2 - smooth.y;
 
-    // -----------------------------
-    // RESIZE SAFETY
-    // -----------------------------
-    window.addEventListener("resize", () => {
-      mouse.x = window.innerWidth / 2;
-      mouse.y = window.innerHeight / 2;
-    });
+      const dist = Math.sqrt(dx * dx + dy * dy);
 
-  })();
-  </script>
+      const norm = Math.min(dist / config.radius, 1);
+      const falloff = Math.pow(1 - norm, 3);
+
+      const targetX = dx * config.push * falloff;
+      const targetY = dy * config.push * falloff;
+
+      d.vx += (targetX - d.vx) * config.returnEase;
+      d.vy += (targetY - d.vy) * config.returnEase;
+
+      const baseX = d.baseX + app.screen.width / 2;
+      const baseY = d.baseY + app.screen.height / 2;
+
+      c.x = baseX + d.vx;
+      c.y = baseY + d.vy;
+
+      const scale = 1 + config.scale * falloff;
+      c.scale.set(scale);
+
+      c.rotation = d.vx * 0.002;
+    }
+  });
+
+})();
+</script>
 </body>
 </html>
