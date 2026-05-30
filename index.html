@@ -1,9 +1,12 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Stable Apple Warp</title>
+  <title>Accessible Apple Motion Typography</title>
 
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -16,9 +19,17 @@
       overflow: hidden;
       height: 100%;
     }
+
     #container {
       width: 100%;
       height: 100%;
+    }
+
+    /* Accessibility fallback */
+    @media (prefers-reduced-motion: reduce) {
+      canvas {
+        filter: none !important;
+      }
     }
   </style>
 </head>
@@ -30,6 +41,11 @@
 
 <script>
 (async () => {
+
+  // ----------------------------
+  // ACCESSIBILITY CHECK
+  // ----------------------------
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   await document.fonts.load('64px "Instrument Serif"');
   await document.fonts.ready;
@@ -60,22 +76,21 @@
   const data = [];
 
   // ----------------------------
-  // CENTER LAYOUT
+  // CENTERED LAYOUT (stable)
   // ----------------------------
   const lineHeight = 92;
-  const startY = app.screen.height / 2 - (lines.length * lineHeight) / 2;
+  const startY =
+    app.screen.height / 2 - (lines.length * lineHeight) / 2;
 
   for (let i = 0; i < lines.length; i++) {
 
     const line = lines[i];
 
     let totalWidth = 0;
-    const temp = [];
 
     for (let c of line) {
       const t = new PIXI.Text(c === " " ? " " : c, style);
       totalWidth += t.width;
-      temp.push(t);
     }
 
     let x = app.screen.width / 2 - totalWidth / 2;
@@ -85,6 +100,9 @@
       const char = line[j];
 
       const t = new PIXI.Text(char === " " ? " " : char, style);
+
+      t.x = x;
+      t.y = y;
 
       app.stage.addChild(t);
 
@@ -104,7 +122,11 @@
   // ----------------------------
   // MOUSE
   // ----------------------------
-  const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  const mouse = {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2
+  };
+
   const smooth = { x: mouse.x, y: mouse.y };
 
   window.addEventListener("mousemove", (e) => {
@@ -113,7 +135,7 @@
   });
 
   // ----------------------------
-  // CONFIG
+  // MOTION CONFIG
   // ----------------------------
   const config = {
     radius: 420,
@@ -121,23 +143,31 @@
     scale: 0.6,
     smoothing: 0.12,
     returnEase: 0.08,
-    baseWarp: 0.22 // IMPORTANT: true pre-warp strength
+    baseWarp: 0.18
   };
 
   // ----------------------------
-  // STABLE NOISE FUNCTION (deterministic)
+  // IMPROVED BASE WARP (structured, Apple-style)
   // ----------------------------
-  function noise(i, axis) {
-    return Math.sin(i * 12.9898 + axis * 78.233) * 0.5 + 0.5;
+  function smoothWave(x, t) {
+    return Math.sin(x * 0.08 + t * 0.6) * 0.6 +
+           Math.sin(x * 0.02 + t * 0.3) * 0.4;
   }
+
+  let time = 0;
 
   // ----------------------------
   // LOOP
   // ----------------------------
   app.ticker.add(() => {
 
-    smooth.x += (mouse.x - smooth.x) * config.smoothing;
-    smooth.y += (mouse.y - smooth.y) * config.smoothing;
+    time += reduceMotion ? 0.002 : 0.01;
+
+    // reduced motion mode → almost static
+    const motionFactor = reduceMotion ? 0.15 : 1;
+
+    smooth.x += (mouse.x - smooth.x) * (reduceMotion ? 0.05 : config.smoothing);
+    smooth.y += (mouse.y - smooth.y) * (reduceMotion ? 0.05 : config.smoothing);
 
     for (let i = 0; i < chars.length; i++) {
 
@@ -145,13 +175,18 @@
       const d = data[i];
 
       // ----------------------------
-      // BASE WARP (always active)
+      // BASE WARP (structured + coherent)
       // ----------------------------
-      const baseX =
-        (noise(i, 1) - 0.5) * 18 * config.baseWarp;
+      const lineIndex = Math.floor(i / 40);
 
-      const baseY =
-        (noise(i, 2) - 0.5) * 18 * config.baseWarp;
+      const wave =
+        smoothWave(lineIndex * 10, time);
+
+      const drift =
+        Math.sin(i * 0.12 + time) * 2;
+
+      const baseX = wave * 6 * config.baseWarp;
+      const baseY = drift * config.baseWarp;
 
       // ----------------------------
       // CURSOR FIELD
@@ -164,8 +199,8 @@
       const norm = Math.min(dist / config.radius, 1);
       const falloff = Math.pow(1 - norm, 3);
 
-      const tx = dx * config.push * falloff;
-      const ty = dy * config.push * falloff;
+      const tx = dx * config.push * falloff * motionFactor;
+      const ty = dy * config.push * falloff * motionFactor;
 
       d.vx += (tx - d.vx) * config.returnEase;
       d.vy += (ty - d.vy) * config.returnEase;
@@ -176,10 +211,9 @@
       c.x = d.baseX + d.vx + baseX;
       c.y = d.baseY + d.vy + baseY;
 
-      const scale = 1 + config.scale * falloff;
-      c.scale.set(scale);
+      c.scale.set(1 + config.scale * falloff * motionFactor);
 
-      c.rotation = d.vx * 0.002;
+      c.rotation = d.vx * 0.002 * motionFactor;
     }
   });
 
