@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Warp Text Figma Embed</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    #container {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.0/dist/pixi.min.js"></script>
+
+  <script>
+    // ----------------------------
+    // SETUP PIXI APP
+    // ----------------------------
+    const app = new PIXI.Application({
+      resizeTo: window,
+      backgroundColor: 0xffffff,
+      antialias: true
+    });
+
+    document.getElementById("container").appendChild(app.view);
+
+    // ----------------------------
+    // TEXT CONFIG
+    // ----------------------------
+    const lines = [
+      "Product & Design System Designer",
+      "Focused on scalable systems",
+      "& complex platforms."
+    ];
+
+    const chars = [];
+    const charData = [];
+
+    const style = new PIXI.TextStyle({
+      fontFamily: "Arial",
+      fontSize: 64,
+      fill: "#ff7730"
+    });
+
+    // ----------------------------
+    // BUILD TEXT AS INDIVIDUAL CHARACTERS
+    // ----------------------------
+    let yOffset = 150;
+
+    for (let line of lines) {
+      let xOffset = 100;
+
+      for (let char of line) {
+        const text = new PIXI.Text(char === " " ? " " : char, style);
+        text.x = xOffset;
+        text.y = yOffset;
+
+        app.stage.addChild(text);
+
+        chars.push(text);
+
+        charData.push({
+          baseX: xOffset,
+          baseY: yOffset
+        });
+
+        xOffset += 34; // spacing per character
+      }
+
+      yOffset += 90;
+    }
+
+    // ----------------------------
+    // MOUSE TRACKING
+    // ----------------------------
+    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+    window.addEventListener("mousemove", (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    // ----------------------------
+    // ANIMATION LOOP
+    // ----------------------------
+    const maxRadius = 500;
+
+    app.ticker.add(() => {
+      for (let i = 0; i < chars.length; i++) {
+        const c = chars[i];
+        const d = charData[i];
+
+        const dx = d.baseX - mouse.x;
+        const dy = d.baseY - mouse.y;
+
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const norm = Math.min(dist / maxRadius, 1);
+        const falloff = 1 - norm * norm;
+
+        const push = 0.4;
+
+        const tx = dx * push * falloff;
+        const ty = dy * push * falloff;
+
+        const scale = 1 + 0.5 * falloff;
+
+        c.x = d.baseX + tx;
+        c.y = d.baseY + ty;
+        c.scale.set(scale);
+      }
+    });
+
+    // ----------------------------
+    // RESIZE SAFETY
+    // ----------------------------
+    window.addEventListener("resize", () => {
+      mouse.x = window.innerWidth / 2;
+      mouse.y = window.innerHeight / 2;
+    });
+  </script>
+</body>
+</html>
