@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Adaptive Portfolio Hero</title>
+  <title>Adaptive Motion Hero</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -14,15 +14,16 @@
     html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
       height: 100%;
       overflow: hidden;
-      background: transparent;
+      background: transparent !important;
     }
 
     #container {
       width: 100%;
       height: 100%;
-      background: transparent;
+      background: transparent !important;
     }
 
     canvas {
@@ -41,7 +42,7 @@
 (async () => {
 
   // ----------------------------
-  // DEVICE MODE (MOBILE TRIGGER = <768px)
+  // DEVICE MODE (MOBILE TRIGGER < 768px)
   // ----------------------------
   function getDeviceMode() {
     const w = window.innerWidth;
@@ -58,14 +59,72 @@
     return a + (b - a) * t;
   }
 
-  function getScale() {
-    return Math.min(window.innerWidth, window.innerHeight) / 1000;
+  function getUIScale() {
+    const base = Math.min(window.innerWidth, window.innerHeight);
+    return clamp(0.6, 1.4, base / 900);
   }
 
-  function getConfig() {
-    const mode = getDeviceMode();
+  const reduceMotion =
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    if (mode === "mobile") {
+  await document.fonts.load('64px "Instrument Serif"');
+  await document.fonts.ready;
+
+  // ----------------------------
+  // PIXI SETUP (TRANSPARENT FIX)
+  // ----------------------------
+  const app = new PIXI.Application({
+    resizeTo: window,
+    antialias: true,
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true,
+    backgroundAlpha: 0,
+    backgroundColor: 0x000000,
+    transparent: true
+  });
+
+  document.getElementById("container").appendChild(app.view);
+
+  // ----------------------------
+  // TEXT DATA
+  // ----------------------------
+  const lines = [
+    "Product & Design System Designer",
+    "Focused on scalable systems",
+    "& complex platforms."
+  ];
+
+  function getFontSize() {
+    return clamp(22, 72, 64 * getUIScale());
+  }
+
+  function getLineHeight() {
+    return clamp(28, 92, 70 * getUIScale());
+  }
+
+  function getLetterSpacing() {
+    return clamp(0, 3, 1.2 * getUIScale());
+  }
+
+  function createStyle() {
+    return new PIXI.TextStyle({
+      fontFamily: "Instrument Serif",
+      fontSize: getFontSize(),
+      letterSpacing: getLetterSpacing(),
+      fill: "#ff7730"
+    });
+  }
+
+  // ----------------------------
+  // CONFIG (PHYSICS SYSTEM)
+  // ----------------------------
+  let config = getConfig();
+  let targetConfig = getConfig();
+
+  function getConfig() {
+    const w = window.innerWidth;
+
+    if (w < 768) {
       return {
         radius: 420,
         push: 0.22,
@@ -77,7 +136,7 @@
       };
     }
 
-    if (mode === "tablet") {
+    if (w < 1200) {
       return {
         radius: 620,
         push: 0.35,
@@ -100,62 +159,6 @@
     };
   }
 
-  const reduceMotion =
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  await document.fonts.load('64px "Instrument Serif"');
-  await document.fonts.ready;
-
-  // ----------------------------
-  // PIXI (TRANSPARENT)
-  // ----------------------------
-  const app = new PIXI.Application({
-    resizeTo: window,
-    antialias: true,
-    resolution: window.devicePixelRatio || 1,
-    autoDensity: true,
-    backgroundAlpha: 0,
-    backgroundColor: 0x000000
-  });
-
-  document.getElementById("container").appendChild(app.view);
-
-  // ----------------------------
-  // TEXT
-  // ----------------------------
-  const lines = [
-    "Product & Design System Designer",
-    "Focused on scalable systems",
-    "& complex platforms."
-  ];
-
-  function getFontSize() {
-    const base = Math.min(app.screen.width, app.screen.height);
-    return clamp(22, 72, base * 0.055);
-  }
-
-  function createStyle() {
-    const s = getScale();
-
-    return new PIXI.TextStyle({
-      fontFamily: "Instrument Serif",
-      fontSize: getFontSize(),
-      letterSpacing: clamp(0, 2.5, 1.2 * s),
-      fill: "#ff7730"
-    });
-  }
-
-  function getLineHeight() {
-    const s = getScale();
-    return clamp(28, 90, 70 * s);
-  }
-
-  let config = getConfig();
-  let targetConfig = getConfig();
-
-  const chars = [];
-  const data = [];
-
   // ----------------------------
   // POINTER SYSTEM (DESKTOP + MOBILE + AMBIENT)
   // ----------------------------
@@ -167,14 +170,12 @@
 
   const smooth = { x: pointer.x, y: pointer.y };
 
-  // desktop
   window.addEventListener("mousemove", (e) => {
     pointer.x = e.clientX;
     pointer.y = e.clientY;
     pointer.active = true;
   });
 
-  // mobile touch
   window.addEventListener("touchmove", (e) => {
     const t = e.touches[0];
     if (!t) return;
@@ -188,7 +189,6 @@
     pointer.active = false;
   });
 
-  // ambient fallback for mobile idle
   function updateAmbientPointer() {
     if (pointer.active) return;
 
@@ -204,7 +204,7 @@
   }
 
   // ----------------------------
-  // WARP FUNCTIONS
+  // WARP HELPERS
   // ----------------------------
   function smoothWave(x, t) {
     return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
@@ -223,10 +223,15 @@
     };
   }
 
+  // ----------------------------
+  // STATE
+  // ----------------------------
+  const chars = [];
+  const data = [];
   let time = 0;
 
   // ----------------------------
-  // BUILD TEXT
+  // BUILD TEXT (FULLY CENTERED + SCALED)
   // ----------------------------
   function buildText() {
 
@@ -246,9 +251,10 @@
 
       let totalWidth = 0;
 
-      for (let c of line) {
-        const t = new PIXI.Text(c === " " ? " " : c, style);
+      for (let ch of line) {
+        const t = new PIXI.Text(ch === " " ? " " : ch, style);
         totalWidth += t.width;
+        t.destroy();
       }
 
       let x = app.screen.width / 2 - totalWidth / 2;
@@ -270,13 +276,7 @@
         app.stage.addChild(t);
 
         chars.push(t);
-
-        data.push({
-          baseX: x,
-          baseY: y,
-          vx: 0,
-          vy: 0
-        });
+        data.push({ baseX: x, baseY: y, vx: 0, vy: 0 });
 
         x += t.width;
       }
@@ -286,16 +286,19 @@
   buildText();
 
   // ----------------------------
-  // RESIZE + MODE SWITCH
+  // RESIZE + REBUILD
   // ----------------------------
   window.addEventListener("resize", () => {
     app.renderer.resize(window.innerWidth, window.innerHeight);
     targetConfig = getConfig();
-    buildText();
+
+    requestAnimationFrame(() => {
+      buildText();
+    });
   });
 
   // ----------------------------
-  // LOOP (FULL SYSTEM)
+  // LOOP
   // ----------------------------
   app.ticker.add(() => {
 
@@ -325,10 +328,8 @@
       const c = chars[i];
       const d = data[i];
 
-      const lineIndex = Math.floor(i / 40);
-
       const wave =
-        smoothWave(lineIndex * 10, time);
+        smoothWave(i * 0.2, time);
 
       const drift =
         Math.sin(i * 0.1 + time) * 2;
