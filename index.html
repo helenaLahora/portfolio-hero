@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Centered Apple Warp</title>
+  <title>Fixed Apple Warp</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,6 @@
       overflow: hidden;
       height: 100%;
     }
-
     #container {
       width: 100%;
       height: 100%;
@@ -32,15 +31,9 @@
 <script>
 (async () => {
 
-  // ----------------------------
-  // FONT LOAD
-  // ----------------------------
   await document.fonts.load('64px "Instrument Serif"');
   await document.fonts.ready;
 
-  // ----------------------------
-  // PIXI APP
-  // ----------------------------
   const app = new PIXI.Application({
     resizeTo: window,
     backgroundColor: 0xffffff,
@@ -51,9 +44,6 @@
 
   document.getElementById("container").appendChild(app.view);
 
-  // ----------------------------
-  // TEXT
-  // ----------------------------
   const lines = [
     "Product & Design System Designer",
     "Focused on scalable systems",
@@ -69,39 +59,42 @@
   const chars = [];
   const data = [];
 
-  const lineContainers = [];
-
   // ----------------------------
-  // BUILD CENTERED LAYOUT
+  // BUILD CENTERED TEXT (GLOBAL SPACE ONLY)
   // ----------------------------
-  const startY = 0;
+  const lineHeight = 92;
+  const startY = app.screen.height / 2 - (lines.length * lineHeight) / 2;
 
   for (let i = 0; i < lines.length; i++) {
 
-    const line = new PIXI.Container();
-    const lineChars = [];
+    const line = lines[i];
+
+    // measure full line width first
+    const temp = new PIXI.Container();
+    const tempChars = [];
 
     let totalWidth = 0;
 
-    // first pass: create chars + measure width
-    for (let char of lines[i]) {
-      const t = new PIXI.Text(char === " " ? " " : char, style);
-
-      line.addChild(t);
-      lineChars.push(t);
-
+    for (let c of line) {
+      const t = new PIXI.Text(c === " " ? " " : c, style);
       totalWidth += t.width;
+      tempChars.push(t);
     }
 
-    // center line horizontally
-    let x = -totalWidth / 2;
-    const y = startY + i * 92;
+    let x = app.screen.width / 2 - totalWidth / 2;
+    let y = startY + i * lineHeight;
 
-    for (let j = 0; j < lineChars.length; j++) {
-      const t = lineChars[j];
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+
+      const t = new PIXI.Text(char === " " ? " " : char, style);
 
       t.x = x;
       t.y = y;
+
+      app.stage.addChild(t);
+
+      chars.push(t);
 
       data.push({
         baseX: x,
@@ -110,16 +103,8 @@
         vy: 0
       });
 
-      chars.push(t);
-
-      x += t.width; // NATURAL kerning (no fake spacing)
+      x += t.width;
     }
-
-    line.x = app.screen.width / 2;
-    line.y = app.screen.height / 2;
-
-    app.stage.addChild(line);
-    lineContainers.push(line);
   }
 
   // ----------------------------
@@ -134,7 +119,7 @@
   });
 
   // ----------------------------
-  // MOTION CONFIG (Apple feel)
+  // MOTION CONFIG
   // ----------------------------
   const config = {
     radius: 420,
@@ -149,7 +134,6 @@
   // ----------------------------
   app.ticker.add(() => {
 
-    // smooth cursor
     smooth.x += (mouse.x - smooth.x) * config.smoothing;
     smooth.y += (mouse.y - smooth.y) * config.smoothing;
 
@@ -157,29 +141,24 @@
       const c = chars[i];
       const d = data[i];
 
-      const dx = d.baseX + app.screen.width / 2 - smooth.x;
-      const dy = d.baseY + app.screen.height / 2 - smooth.y;
+      const dx = d.baseX - smooth.x;
+      const dy = d.baseY - smooth.y;
 
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       const norm = Math.min(dist / config.radius, 1);
       const falloff = Math.pow(1 - norm, 3);
 
-      const targetX = dx * config.push * falloff;
-      const targetY = dy * config.push * falloff;
+      const tx = dx * config.push * falloff;
+      const ty = dy * config.push * falloff;
 
-      d.vx += (targetX - d.vx) * config.returnEase;
-      d.vy += (targetY - d.vy) * config.returnEase;
+      d.vx += (tx - d.vx) * config.returnEase;
+      d.vy += (ty - d.vy) * config.returnEase;
 
-      const baseX = d.baseX + app.screen.width / 2;
-      const baseY = d.baseY + app.screen.height / 2;
+      c.x = d.baseX + d.vx;
+      c.y = d.baseY + d.vy;
 
-      c.x = baseX + d.vx;
-      c.y = baseY + d.vy;
-
-      const scale = 1 + config.scale * falloff;
-      c.scale.set(scale);
-
+      c.scale.set(1 + config.scale * falloff);
       c.rotation = d.vx * 0.002;
     }
   });
