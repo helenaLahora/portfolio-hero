@@ -41,12 +41,11 @@
 (async () => {
 
   // ----------------------------
-  // DEVICE MODE (THIS IS YOUR MOBILE TRIGGER)
+  // DEVICE MODE (MOBILE TRIGGER = <768px)
   // ----------------------------
   function getDeviceMode() {
     const w = window.innerWidth;
-
-    if (w < 768) return "mobile";   // 👈 MOBILE TRIGGER HERE
+    if (w < 768) return "mobile";
     if (w < 1200) return "tablet";
     return "desktop";
   }
@@ -60,8 +59,7 @@
   }
 
   function getScale() {
-    const base = Math.min(window.innerWidth, window.innerHeight);
-    return base / 1000;
+    return Math.min(window.innerWidth, window.innerHeight) / 1000;
   }
 
   function getConfig() {
@@ -70,12 +68,12 @@
     if (mode === "mobile") {
       return {
         radius: 420,
-        push: 0.25,
-        scale: 0.35,
+        push: 0.22,
+        scale: 0.32,
         smoothing: 0.08,
         returnEase: 0.06,
         baseWarp: 0.08,
-        motionIntensity: 0.6
+        motionIntensity: 0.7
       };
     }
 
@@ -133,8 +131,7 @@
 
   function getFontSize() {
     const base = Math.min(app.screen.width, app.screen.height);
-    const size = base * 0.055;
-    return clamp(22, 72, size);
+    return clamp(22, 72, base * 0.055);
   }
 
   function createStyle() {
@@ -148,28 +145,67 @@
     });
   }
 
+  function getLineHeight() {
+    const s = getScale();
+    return clamp(28, 90, 70 * s);
+  }
+
   let config = getConfig();
   let targetConfig = getConfig();
 
   const chars = [];
   const data = [];
 
-  function getLineHeight() {
-    const s = getScale();
-    return clamp(28, 90, 70 * s);
+  // ----------------------------
+  // POINTER SYSTEM (DESKTOP + MOBILE + AMBIENT)
+  // ----------------------------
+  const pointer = {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+    active: false
+  };
+
+  const smooth = { x: pointer.x, y: pointer.y };
+
+  // desktop
+  window.addEventListener("mousemove", (e) => {
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    pointer.active = true;
+  });
+
+  // mobile touch
+  window.addEventListener("touchmove", (e) => {
+    const t = e.touches[0];
+    if (!t) return;
+
+    pointer.x = t.clientX;
+    pointer.y = t.clientY;
+    pointer.active = true;
+  });
+
+  window.addEventListener("touchend", () => {
+    pointer.active = false;
+  });
+
+  // ambient fallback for mobile idle
+  function updateAmbientPointer() {
+    if (pointer.active) return;
+
+    const t = performance.now() * 0.0003;
+
+    pointer.x =
+      window.innerWidth / 2 +
+      Math.sin(t * 1.2) * window.innerWidth * 0.25;
+
+    pointer.y =
+      window.innerHeight / 2 +
+      Math.cos(t * 0.9) * window.innerHeight * 0.2;
   }
 
   // ----------------------------
-  // MOUSE
+  // WARP FUNCTIONS
   // ----------------------------
-  const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  const smooth = { x: mouse.x, y: mouse.y };
-
-  window.addEventListener("mousemove", (e) => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-  });
-
   function smoothWave(x, t) {
     return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
            Math.sin(x * 0.015 + t * 0.25) * 0.3;
@@ -235,7 +271,12 @@
 
         chars.push(t);
 
-        data.push({ baseX: x, baseY: y, vx: 0, vy: 0 });
+        data.push({
+          baseX: x,
+          baseY: y,
+          vx: 0,
+          vy: 0
+        });
 
         x += t.width;
       }
@@ -245,29 +286,28 @@
   buildText();
 
   // ----------------------------
-  // RESIZE + MODE SWITCH TRIGGER
+  // RESIZE + MODE SWITCH
   // ----------------------------
   window.addEventListener("resize", () => {
-
     app.renderer.resize(window.innerWidth, window.innerHeight);
-
     targetConfig = getConfig();
-
     buildText();
   });
 
   // ----------------------------
-  // LOOP (SMOOTH CONFIG INTERPOLATION)
+  // LOOP (FULL SYSTEM)
   // ----------------------------
   app.ticker.add(() => {
 
     time += reduceMotion ? 0.002 : 0.01;
 
+    updateAmbientPointer();
+
     const motionFactor =
       (reduceMotion ? 0.15 : 1) * config.motionIntensity;
 
-    smooth.x += (mouse.x - smooth.x) * config.smoothing;
-    smooth.y += (mouse.y - smooth.y) * config.smoothing;
+    smooth.x += (pointer.x - smooth.x) * config.smoothing;
+    smooth.y += (pointer.y - smooth.y) * config.smoothing;
 
     // smooth config transitions
     config.radius = lerp(config.radius, targetConfig.radius, 0.08);
