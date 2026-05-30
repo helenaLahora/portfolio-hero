@@ -42,13 +42,13 @@
 (async () => {
 
   // ----------------------------
-  // FORCE TRANSPARENCY (CRITICAL FOR MOBILE + IFRAMES)
+  // FORCE TRANSPARENCY (CRITICAL)
   // ----------------------------
   document.documentElement.style.background = "transparent";
   document.body.style.background = "transparent";
 
   // ----------------------------
-  // PIXI INIT (NO WHITE BACKGROUND EVER)
+  // PIXI INIT (SAFE FOR MOBILE + IFRAME)
   // ----------------------------
   const app = new PIXI.Application({
     resizeTo: window,
@@ -58,14 +58,13 @@
     backgroundAlpha: 0,
     backgroundColor: 0x000000,
     transparent: true,
-    clearBeforeRender: true,
-    powerPreference: "high-performance"
+    clearBeforeRender: true
   });
 
   document.getElementById("container").appendChild(app.view);
 
   // ----------------------------
-  // TEXT DATA
+  // TEXT CONTENT
   // ----------------------------
   const lines = [
     "Product & Design System Designer",
@@ -110,37 +109,24 @@
     return h;
   }
 
-  function getMaxWidth() {
-    return window.innerWidth * 0.88;
-  }
-
   function getSafePaddingY() {
     return Math.max(60, window.innerHeight * 0.22);
   }
 
-  // ----------------------------
-  // SAFE MEASUREMENT SYSTEM (CRITICAL FIX)
-  // ----------------------------
-  function measureChar(ch, style) {
-    const t = new PIXI.Text(ch === " " ? " " : ch, style);
-
-    app.stage.addChild(t);
-    t.updateTransform();
-
-    const w = t.getBounds().width;
-
-    app.stage.removeChild(t);
-    t.destroy();
-
-    return w;
+  function getMaxWidth() {
+    return window.innerWidth * 0.88;
   }
 
-  function measureLine(line, style) {
-    let width = 0;
-    for (let ch of line) {
-      width += measureChar(ch, style);
-    }
-    return width;
+  // ----------------------------
+  // SINGLE MEASURE TEXT (CRITICAL FIX)
+  // ----------------------------
+  const measureText = new PIXI.Text("", createStyle());
+  app.stage.addChild(measureText);
+
+  function measure(str) {
+    measureText.text = str;
+    measureText.updateTransform();
+    return measureText.getBounds().width;
   }
 
   // ----------------------------
@@ -157,14 +143,14 @@
     const w = window.innerWidth;
 
     if (w < 768) {
-      return { radius: 420, push: 0.22, scale: 0.32, smoothing: 0.08, returnEase: 0.06, baseWarp: 0.08, motionIntensity: 0.7 };
+      return { radius: 420, push: 0.22, scale: 0.32, smoothing: 0.08, returnEase: 0.06, baseWarp: 0.08 };
     }
 
     if (w < 1200) {
-      return { radius: 620, push: 0.35, scale: 0.45, smoothing: 0.11, returnEase: 0.08, baseWarp: 0.12, motionIntensity: 0.85 };
+      return { radius: 620, push: 0.35, scale: 0.45, smoothing: 0.11, returnEase: 0.08, baseWarp: 0.12 };
     }
 
-    return { radius: 780, push: 0.42, scale: 0.5, smoothing: 0.14, returnEase: 0.09, baseWarp: 0.16, motionIntensity: 1 };
+    return { radius: 780, push: 0.42, scale: 0.5, smoothing: 0.14, returnEase: 0.09, baseWarp: 0.16 };
   }
 
   // ----------------------------
@@ -206,7 +192,34 @@
   }
 
   // ----------------------------
-  // BUILD TEXT (FULL FIXED LAYOUT ENGINE)
+  // WORD WRAP (SAFE + STABLE)
+  // ----------------------------
+  function wrapLines(lines, maxWidth) {
+    const result = [];
+
+    for (let line of lines) {
+      const words = line.split(" ");
+      let current = "";
+
+      for (let w of words) {
+        const test = current + w + " ";
+
+        if (measure(test) > maxWidth && current !== "") {
+          result.push(current);
+          current = w + " ";
+        } else {
+          current = test;
+        }
+      }
+
+      result.push(current);
+    }
+
+    return result;
+  }
+
+  // ----------------------------
+  // BUILD TEXT (FINAL STABLE VERSION)
   // ----------------------------
   function buildText() {
 
@@ -219,51 +232,19 @@
     const lineHeight = getLineHeight();
     const maxWidth = getMaxWidth();
 
-    let wrapped = [];
-
-    // WORD WRAP (SAFE)
-    for (let line of lines) {
-      const words = line.split(" ");
-      let current = "";
-
-      for (let w of words) {
-        const test = current + w + " ";
-
-        const temp = new PIXI.Text(test, style);
-        app.stage.addChild(temp);
-        temp.updateTransform();
-
-        const width = temp.getBounds().width;
-
-        app.stage.removeChild(temp);
-        temp.destroy();
-
-        if (width > maxWidth && current !== "") {
-          wrapped.push(current);
-          current = w + " ";
-        } else {
-          current = test;
-        }
-      }
-
-      wrapped.push(current);
-    }
+    const wrapped = wrapLines(lines, maxWidth);
 
     const totalHeight = (wrapped.length - 1) * lineHeight;
 
     const padding = getSafePaddingY();
-    const usableHeight = window.innerHeight - padding * 2;
+    const usable = window.innerHeight - padding * 2;
 
-    const startY =
-      padding +
-      usableHeight / 2 -
-      totalHeight / 2;
+    const startY = padding + usable / 2 - totalHeight / 2;
 
-    // RENDER
     for (let i = 0; i < wrapped.length; i++) {
 
       const line = wrapped[i];
-      const lineWidth = measureLine(line, style);
+      const lineWidth = measure(line);
 
       let x = window.innerWidth / 2 - lineWidth / 2;
       let y = startY + i * lineHeight;
@@ -280,7 +261,7 @@
         chars.push(t);
         data.push({ baseX: x, baseY: y, vx: 0, vy: 0 });
 
-        x += measureChar(ch, style);
+        x += measure(ch);
       }
     }
   }
@@ -308,10 +289,8 @@
 
     updateAmbient();
 
-    const motion = (1) * config.motionIntensity;
-
-    smooth.x += (pointer.x - smooth.x) * config.smoothing;
-    smooth.y += (pointer.y - smooth.y) * config.smoothing;
+    smooth.x += (pointer.x - smooth.x) * 0.12;
+    smooth.y += (pointer.y - smooth.y) * 0.12;
 
     for (let i = 0; i < chars.length; i++) {
 
@@ -332,8 +311,8 @@
       c.x = d.baseX + d.vx + bx;
       c.y = d.baseY + d.vy + by;
 
-      c.scale.set(1 + config.scale * f.f * motion);
-      c.rotation = d.vx * 0.002 * motion;
+      c.scale.set(1 + config.scale * f.f);
+      c.rotation = d.vx * 0.002;
     }
 
   });
