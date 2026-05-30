@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Large Radius Apple Motion Typography</title>
+  <title>Portfolio Hero Motion</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -18,6 +18,7 @@
       overflow: hidden;
       height: 100%;
     }
+
     #container {
       width: 100%;
       height: 100%;
@@ -49,6 +50,9 @@
 
   document.getElementById("container").appendChild(app.view);
 
+  // ----------------------------
+  // TEXT
+  // ----------------------------
   const lines = [
     "Product & Design System Designer",
     "Focused on scalable systems",
@@ -65,7 +69,7 @@
   const data = [];
 
   // ----------------------------
-  // LAYOUT (tighter spacing)
+  // LAYOUT (centered + tight spacing)
   // ----------------------------
   const lineHeight = 70;
 
@@ -127,11 +131,11 @@
   });
 
   // ----------------------------
-  // CONFIG (BIG RADIUS VERSION)
+  // CONFIG (large radius + stable motion)
   // ----------------------------
   const config = {
-    radius: 780,          // 🔥 BIGGER FIELD (was ~420)
-    push: 0.45,           // slightly softer for large radius
+    radius: 780,
+    push: 0.45,
     scale: 0.55,
     smoothing: 0.12,
     returnEase: 0.08,
@@ -139,7 +143,7 @@
   };
 
   // ----------------------------
-  // STRUCTURED BASE WARP
+  // STRUCTURED WARP (clean, Apple-style)
   // ----------------------------
   function smoothWave(x, t) {
     return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
@@ -148,17 +152,14 @@
 
   let time = 0;
 
-  // ----------------------------
-  // SHARED FORCE FUNCTION (IMPORTANT FIX)
-  // ----------------------------
-  function getForce(dx, dy, radius, push) {
+  function getForce(dx, dy) {
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const norm = Math.min(dist / radius, 1);
+    const norm = Math.min(dist / config.radius, 1);
     const falloff = Math.pow(1 - norm, 3);
 
     return {
-      x: dx * push * falloff,
-      y: dy * push * falloff,
+      x: dx * config.push * falloff,
+      y: dy * config.push * falloff,
       falloff
     };
   }
@@ -195,13 +196,11 @@
       const baseY = drift * config.baseWarp;
 
       // ----------------------------
-      // CURSOR FIELD (USED FROM FRAME 0)
+      // CURSOR FORCE (always active)
       // ----------------------------
       const fx = getForce(
         d.baseX - smooth.x,
-        d.baseY - smooth.y,
-        config.radius,
-        config.push
+        d.baseY - smooth.y
       );
 
       d.vx += (fx.x - d.vx) * config.returnEase;
