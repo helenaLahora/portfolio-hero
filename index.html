@@ -42,44 +42,13 @@
 (async () => {
 
   // ----------------------------
-  // SAFETY: FORCE TRANSPARENT PAGE
+  // FORCE TRANSPARENCY (CRITICAL FOR MOBILE + IFRAMES)
   // ----------------------------
   document.documentElement.style.background = "transparent";
   document.body.style.background = "transparent";
 
   // ----------------------------
-  // DEVICE SCALE SYSTEM
-  // ----------------------------
-  function clamp(min, max, v) {
-    return Math.max(min, Math.min(max, v));
-  }
-
-  function lerp(a, b, t) {
-    return a + (b - a) * t;
-  }
-
-  function getUIScale() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const base = Math.max(320, Math.min(w, h));
-    return clamp(0.6, 1.4, base / 900);
-  }
-
-  function getDeviceMode() {
-    const w = window.innerWidth;
-    if (w < 768) return "mobile";
-    if (w < 1200) return "tablet";
-    return "desktop";
-  }
-
-  const reduceMotion =
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  await document.fonts.load('64px "Instrument Serif"');
-  await document.fonts.ready;
-
-  // ----------------------------
-  // PIXI (TRUE TRANSPARENT)
+  // PIXI INIT (NO WHITE BACKGROUND EVER)
   // ----------------------------
   const app = new PIXI.Application({
     resizeTo: window,
@@ -88,16 +57,15 @@
     autoDensity: true,
     backgroundAlpha: 0,
     backgroundColor: 0x000000,
-    transparent: true
+    transparent: true,
+    clearBeforeRender: true,
+    powerPreference: "high-performance"
   });
 
   document.getElementById("container").appendChild(app.view);
 
-  app.renderer.backgroundAlpha = 0;
-  app.renderer.backgroundColor = 0x000000;
-
   // ----------------------------
-  // TEXT CONTENT
+  // TEXT DATA
   // ----------------------------
   const lines = [
     "Product & Design System Designer",
@@ -106,14 +74,23 @@
   ];
 
   // ----------------------------
-  // TYPOGRAPHY SYSTEM (FULLY RESPONSIVE)
+  // RESPONSIVE TYPOGRAPHY
   // ----------------------------
+  function clamp(min, max, v) {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function getScale() {
+    const base = Math.max(320, Math.min(window.innerWidth, window.innerHeight));
+    return clamp(0.6, 1.4, base / 900);
+  }
+
   function getFontSize() {
-    return clamp(22, 72, 64 * getUIScale());
+    return clamp(22, 72, 64 * getScale());
   }
 
   function getLetterSpacing() {
-    return clamp(0, 3, 1.2 * getUIScale());
+    return clamp(0, 3, 1.2 * getScale());
   }
 
   function createStyle() {
@@ -121,26 +98,58 @@
       fontFamily: "Instrument Serif",
       fontSize: getFontSize(),
       letterSpacing: getLetterSpacing(),
-      fill: "#ff7730"
+      fill: "#ff7730",
+      padding: 24
     });
   }
 
-  // ----------------------------
-  // LINE HEIGHT (FIXED OPTICAL CENTERING)
-  // ----------------------------
-  function getLineMetrics() {
-    const style = createStyle();
-    const temp = new PIXI.Text("Mg", style);
-
-    const h = temp.height * 1.15; // optical correction
-    temp.destroy();
-
+  function getLineHeight() {
+    const t = new PIXI.Text("Mg", createStyle());
+    const h = t.height * 1.15;
+    t.destroy();
     return h;
   }
 
+  function getMaxWidth() {
+    return window.innerWidth * 0.88;
+  }
+
+  function getSafePaddingY() {
+    return Math.max(60, window.innerHeight * 0.22);
+  }
+
   // ----------------------------
-  // PHYSICS CONFIG
+  // SAFE MEASUREMENT SYSTEM (CRITICAL FIX)
   // ----------------------------
+  function measureChar(ch, style) {
+    const t = new PIXI.Text(ch === " " ? " " : ch, style);
+
+    app.stage.addChild(t);
+    t.updateTransform();
+
+    const w = t.getBounds().width;
+
+    app.stage.removeChild(t);
+    t.destroy();
+
+    return w;
+  }
+
+  function measureLine(line, style) {
+    let width = 0;
+    for (let ch of line) {
+      width += measureChar(ch, style);
+    }
+    return width;
+  }
+
+  // ----------------------------
+  // STATE
+  // ----------------------------
+  let chars = [];
+  let data = [];
+  let time = 0;
+
   let config = getConfig();
   let targetConfig = getConfig();
 
@@ -148,150 +157,120 @@
     const w = window.innerWidth;
 
     if (w < 768) {
-      return {
-        radius: 420,
-        push: 0.22,
-        scale: 0.32,
-        smoothing: 0.08,
-        returnEase: 0.06,
-        baseWarp: 0.08,
-        motionIntensity: 0.7
-      };
+      return { radius: 420, push: 0.22, scale: 0.32, smoothing: 0.08, returnEase: 0.06, baseWarp: 0.08, motionIntensity: 0.7 };
     }
 
     if (w < 1200) {
-      return {
-        radius: 620,
-        push: 0.35,
-        scale: 0.45,
-        smoothing: 0.11,
-        returnEase: 0.08,
-        baseWarp: 0.12,
-        motionIntensity: 0.85
-      };
+      return { radius: 620, push: 0.35, scale: 0.45, smoothing: 0.11, returnEase: 0.08, baseWarp: 0.12, motionIntensity: 0.85 };
     }
 
-    return {
-      radius: 780,
-      push: 0.42,
-      scale: 0.5,
-      smoothing: 0.14,
-      returnEase: 0.09,
-      baseWarp: 0.16,
-      motionIntensity: 1
-    };
+    return { radius: 780, push: 0.42, scale: 0.5, smoothing: 0.14, returnEase: 0.09, baseWarp: 0.16, motionIntensity: 1 };
   }
 
   // ----------------------------
-  // POINTER SYSTEM
+  // POINTER
   // ----------------------------
-  const pointer = {
-    x: window.innerWidth / 2,
-    y: window.innerHeight / 2,
-    active: false
-  };
+  const pointer = { x: innerWidth/2, y: innerHeight/2, active:false };
+  const smooth = { x:pointer.x, y:pointer.y };
 
-  const smooth = { x: pointer.x, y: pointer.y };
-
-  window.addEventListener("mousemove", (e) => {
+  window.addEventListener("mousemove", e => {
     pointer.x = e.clientX;
     pointer.y = e.clientY;
     pointer.active = true;
   });
 
-  window.addEventListener("touchmove", (e) => {
+  window.addEventListener("touchmove", e => {
     const t = e.touches[0];
     if (!t) return;
-
     pointer.x = t.clientX;
     pointer.y = t.clientY;
     pointer.active = true;
   });
 
-  window.addEventListener("touchend", () => {
-    pointer.active = false;
-  });
-
-  function updateAmbientPointer() {
+  function updateAmbient() {
     if (pointer.active) return;
-
     const t = performance.now() * 0.0003;
+    pointer.x = innerWidth/2 + Math.sin(t*1.2)*innerWidth*0.25;
+    pointer.y = innerHeight/2 + Math.cos(t*0.9)*innerHeight*0.2;
+  }
 
-    pointer.x =
-      window.innerWidth / 2 +
-      Math.sin(t * 1.2) * window.innerWidth * 0.25;
+  function smoothWave(x,t){
+    return Math.sin(x*0.06+t*0.5)*0.7 + Math.sin(x*0.015+t*0.25)*0.3;
+  }
 
-    pointer.y =
-      window.innerHeight / 2 +
-      Math.cos(t * 0.9) * window.innerHeight * 0.2;
+  function getForce(dx,dy){
+    const d=Math.sqrt(dx*dx+dy*dy);
+    const n=Math.min(d/config.radius,1);
+    const f=Math.pow(1-n,3);
+    return {x:dx*config.push*f,y:dy*config.push*f,f};
   }
 
   // ----------------------------
-  // WARP FUNCTIONS
-  // ----------------------------
-  function smoothWave(x, t) {
-    return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
-           Math.sin(x * 0.015 + t * 0.25) * 0.3;
-  }
-
-  function getForce(dx, dy) {
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const norm = Math.min(dist / config.radius, 1);
-    const falloff = Math.pow(1 - norm, 3);
-
-    return {
-      x: dx * config.push * falloff,
-      y: dy * config.push * falloff,
-      falloff
-    };
-  }
-
-  // ----------------------------
-  // STATE
-  // ----------------------------
-  const chars = [];
-  const data = [];
-  let time = 0;
-
-  // ----------------------------
-  // BUILD TEXT (FIXED CENTERING + SCALE)
+  // BUILD TEXT (FULL FIXED LAYOUT ENGINE)
   // ----------------------------
   function buildText() {
 
     for (let c of chars) app.stage.removeChild(c);
 
-    chars.length = 0;
-    data.length = 0;
+    chars = [];
+    data = [];
 
     const style = createStyle();
-    const lineHeight = getLineMetrics();
+    const lineHeight = getLineHeight();
+    const maxWidth = getMaxWidth();
 
-    const totalHeight = (lines.length - 1) * lineHeight;
+    let wrapped = [];
 
-    for (let i = 0; i < lines.length; i++) {
+    // WORD WRAP (SAFE)
+    for (let line of lines) {
+      const words = line.split(" ");
+      let current = "";
 
-      const line = lines[i];
+      for (let w of words) {
+        const test = current + w + " ";
 
-      let totalWidth = 0;
+        const temp = new PIXI.Text(test, style);
+        app.stage.addChild(temp);
+        temp.updateTransform();
 
-      for (let ch of line) {
-        const t = new PIXI.Text(ch === " " ? " " : ch, style);
-        totalWidth += t.width;
-        t.destroy();
+        const width = temp.getBounds().width;
+
+        app.stage.removeChild(temp);
+        temp.destroy();
+
+        if (width > maxWidth && current !== "") {
+          wrapped.push(current);
+          current = w + " ";
+        } else {
+          current = test;
+        }
       }
 
-      let x = app.screen.width / 2 - totalWidth / 2;
+      wrapped.push(current);
+    }
 
-      let y =
-        app.screen.height / 2 -
-        totalHeight / 2 +
-        i * lineHeight;
+    const totalHeight = (wrapped.length - 1) * lineHeight;
 
-      for (let j = 0; j < line.length; j++) {
+    const padding = getSafePaddingY();
+    const usableHeight = window.innerHeight - padding * 2;
 
-        const char = line[j];
+    const startY =
+      padding +
+      usableHeight / 2 -
+      totalHeight / 2;
 
-        const t = new PIXI.Text(char === " " ? " " : char, style);
+    // RENDER
+    for (let i = 0; i < wrapped.length; i++) {
+
+      const line = wrapped[i];
+      const lineWidth = measureLine(line, style);
+
+      let x = window.innerWidth / 2 - lineWidth / 2;
+      let y = startY + i * lineHeight;
+
+      for (let ch of line) {
+
+        const t = new PIXI.Text(ch === " " ? " " : ch, style);
 
         t.x = x;
         t.y = y;
@@ -301,7 +280,7 @@
         chars.push(t);
         data.push({ baseX: x, baseY: y, vx: 0, vy: 0 });
 
-        x += t.width;
+        x += measureChar(ch, style);
       }
     }
   }
@@ -309,22 +288,14 @@
   buildText();
 
   // ----------------------------
-  // FIX: MOBILE FIRST-LOAD STABILITY
-  // ----------------------------
-  setTimeout(() => {
-    app.renderer.resize(window.innerWidth, window.innerHeight);
-    buildText();
-  }, 80);
-
-  // ----------------------------
-  // RESIZE HANDLER
+  // RESIZE SAFE REBUILD
   // ----------------------------
   window.addEventListener("resize", () => {
     app.renderer.resize(window.innerWidth, window.innerHeight);
     targetConfig = getConfig();
 
     requestAnimationFrame(() => {
-      buildText();
+      requestAnimationFrame(buildText);
     });
   });
 
@@ -333,58 +304,42 @@
   // ----------------------------
   app.ticker.add(() => {
 
-    time += reduceMotion ? 0.002 : 0.01;
+    time += 0.01;
 
-    updateAmbientPointer();
+    updateAmbient();
 
-    const motionFactor =
-      (reduceMotion ? 0.15 : 1) * config.motionIntensity;
+    const motion = (1) * config.motionIntensity;
 
     smooth.x += (pointer.x - smooth.x) * config.smoothing;
     smooth.y += (pointer.y - smooth.y) * config.smoothing;
-
-    config.radius = lerp(config.radius, targetConfig.radius, 0.08);
-    config.push = lerp(config.push, targetConfig.push, 0.08);
-    config.scale = lerp(config.scale, targetConfig.scale, 0.08);
-    config.baseWarp = lerp(config.baseWarp, targetConfig.baseWarp, 0.08);
-    config.motionIntensity = lerp(
-      config.motionIntensity,
-      targetConfig.motionIntensity,
-      0.08
-    );
 
     for (let i = 0; i < chars.length; i++) {
 
       const c = chars[i];
       const d = data[i];
 
-      const wave =
-        smoothWave(i * 0.2, time);
+      const wave = smoothWave(i * 0.2, time);
+      const drift = Math.sin(i * 0.1 + time) * 2;
 
-      const drift =
-        Math.sin(i * 0.1 + time) * 2;
+      const bx = wave * 6 * config.baseWarp;
+      const by = drift * config.baseWarp;
 
-      const baseX = wave * 6 * config.baseWarp;
-      const baseY = drift * config.baseWarp;
+      const f = getForce(d.baseX - smooth.x, d.baseY - smooth.y);
 
-      const fx = getForce(
-        d.baseX - smooth.x,
-        d.baseY - smooth.y
-      );
+      d.vx += (f.x - d.vx) * config.returnEase;
+      d.vy += (f.y - d.vy) * config.returnEase;
 
-      d.vx += (fx.x - d.vx) * config.returnEase;
-      d.vy += (fx.y - d.vy) * config.returnEase;
+      c.x = d.baseX + d.vx + bx;
+      c.y = d.baseY + d.vy + by;
 
-      c.x = d.baseX + d.vx + baseX;
-      c.y = d.baseY + d.vy + baseY;
-
-      c.scale.set(1 + config.scale * fx.falloff * motionFactor);
-
-      c.rotation = d.vx * 0.002 * motionFactor;
+      c.scale.set(1 + config.scale * f.f * motion);
+      c.rotation = d.vx * 0.002 * motion;
     }
+
   });
 
 })();
 </script>
+
 </body>
 </html>
