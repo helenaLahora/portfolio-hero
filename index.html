@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Portfolio Hero Motion</title>
+  <title>Adaptive Portfolio Hero</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -14,14 +14,20 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: #ffffff;
-      overflow: hidden;
       height: 100%;
+      overflow: hidden;
+      background: transparent;
     }
 
     #container {
       width: 100%;
       height: 100%;
+      background: transparent;
+    }
+
+    canvas {
+      display: block;
+      background: transparent !important;
     }
   </style>
 </head>
@@ -34,18 +40,84 @@
 <script>
 (async () => {
 
+  // ----------------------------
+  // DEVICE MODE (THIS IS YOUR MOBILE TRIGGER)
+  // ----------------------------
+  function getDeviceMode() {
+    const w = window.innerWidth;
+
+    if (w < 768) return "mobile";   // 👈 MOBILE TRIGGER HERE
+    if (w < 1200) return "tablet";
+    return "desktop";
+  }
+
+  function clamp(min, max, v) {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function getScale() {
+    const base = Math.min(window.innerWidth, window.innerHeight);
+    return base / 1000;
+  }
+
+  function getConfig() {
+    const mode = getDeviceMode();
+
+    if (mode === "mobile") {
+      return {
+        radius: 420,
+        push: 0.25,
+        scale: 0.35,
+        smoothing: 0.08,
+        returnEase: 0.06,
+        baseWarp: 0.08,
+        motionIntensity: 0.6
+      };
+    }
+
+    if (mode === "tablet") {
+      return {
+        radius: 620,
+        push: 0.35,
+        scale: 0.45,
+        smoothing: 0.11,
+        returnEase: 0.08,
+        baseWarp: 0.12,
+        motionIntensity: 0.85
+      };
+    }
+
+    return {
+      radius: 780,
+      push: 0.42,
+      scale: 0.5,
+      smoothing: 0.14,
+      returnEase: 0.09,
+      baseWarp: 0.16,
+      motionIntensity: 1
+    };
+  }
+
   const reduceMotion =
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   await document.fonts.load('64px "Instrument Serif"');
   await document.fonts.ready;
 
+  // ----------------------------
+  // PIXI (TRANSPARENT)
+  // ----------------------------
   const app = new PIXI.Application({
     resizeTo: window,
-    backgroundColor: 0xffffff,
     antialias: true,
     resolution: window.devicePixelRatio || 1,
-    autoDensity: true
+    autoDensity: true,
+    backgroundAlpha: 0,
+    backgroundColor: 0x000000
   });
 
   document.getElementById("container").appendChild(app.view);
@@ -59,70 +131,38 @@
     "& complex platforms."
   ];
 
-  const style = new PIXI.TextStyle({
-    fontFamily: "Instrument Serif",
-    fontSize: 64,
-    fill: "#ff7730"
-  });
+  function getFontSize() {
+    const base = Math.min(app.screen.width, app.screen.height);
+    const size = base * 0.055;
+    return clamp(22, 72, size);
+  }
+
+  function createStyle() {
+    const s = getScale();
+
+    return new PIXI.TextStyle({
+      fontFamily: "Instrument Serif",
+      fontSize: getFontSize(),
+      letterSpacing: clamp(0, 2.5, 1.2 * s),
+      fill: "#ff7730"
+    });
+  }
+
+  let config = getConfig();
+  let targetConfig = getConfig();
 
   const chars = [];
   const data = [];
 
-  // ----------------------------
-  // LAYOUT (centered + tight spacing)
-  // ----------------------------
-  const lineHeight = 70;
-
-  const startY =
-    app.screen.height / 2 -
-    ((lines.length - 1) * lineHeight) / 2;
-
-  for (let i = 0; i < lines.length; i++) {
-
-    const line = lines[i];
-
-    let totalWidth = 0;
-
-    for (let c of line) {
-      const t = new PIXI.Text(c === " " ? " " : c, style);
-      totalWidth += t.width;
-    }
-
-    let x = app.screen.width / 2 - totalWidth / 2;
-    let y = startY + i * lineHeight;
-
-    for (let j = 0; j < line.length; j++) {
-
-      const char = line[j];
-
-      const t = new PIXI.Text(char === " " ? " " : char, style);
-
-      t.x = x;
-      t.y = y;
-
-      app.stage.addChild(t);
-
-      chars.push(t);
-
-      data.push({
-        baseX: x,
-        baseY: y,
-        vx: 0,
-        vy: 0
-      });
-
-      x += t.width;
-    }
+  function getLineHeight() {
+    const s = getScale();
+    return clamp(28, 90, 70 * s);
   }
 
   // ----------------------------
   // MOUSE
   // ----------------------------
-  const mouse = {
-    x: window.innerWidth / 2,
-    y: window.innerHeight / 2
-  };
-
+  const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   const smooth = { x: mouse.x, y: mouse.y };
 
   window.addEventListener("mousemove", (e) => {
@@ -130,27 +170,10 @@
     mouse.y = e.clientY;
   });
 
-  // ----------------------------
-  // CONFIG (large radius + stable motion)
-  // ----------------------------
-  const config = {
-    radius: 780,
-    push: 0.45,
-    scale: 0.55,
-    smoothing: 0.12,
-    returnEase: 0.08,
-    baseWarp: 0.18
-  };
-
-  // ----------------------------
-  // STRUCTURED WARP (clean, Apple-style)
-  // ----------------------------
   function smoothWave(x, t) {
     return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
            Math.sin(x * 0.015 + t * 0.25) * 0.3;
   }
-
-  let time = 0;
 
   function getForce(dx, dy) {
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -164,26 +187,104 @@
     };
   }
 
+  let time = 0;
+
   // ----------------------------
-  // LOOP
+  // BUILD TEXT
+  // ----------------------------
+  function buildText() {
+
+    for (let c of chars) app.stage.removeChild(c);
+
+    chars.length = 0;
+    data.length = 0;
+
+    const style = createStyle();
+    const lineHeight = getLineHeight();
+
+    const totalHeight = (lines.length - 1) * lineHeight;
+
+    for (let i = 0; i < lines.length; i++) {
+
+      const line = lines[i];
+
+      let totalWidth = 0;
+
+      for (let c of line) {
+        const t = new PIXI.Text(c === " " ? " " : c, style);
+        totalWidth += t.width;
+      }
+
+      let x = app.screen.width / 2 - totalWidth / 2;
+
+      let y =
+        app.screen.height / 2 -
+        totalHeight / 2 +
+        i * lineHeight;
+
+      for (let j = 0; j < line.length; j++) {
+
+        const char = line[j];
+
+        const t = new PIXI.Text(char === " " ? " " : char, style);
+
+        t.x = x;
+        t.y = y;
+
+        app.stage.addChild(t);
+
+        chars.push(t);
+
+        data.push({ baseX: x, baseY: y, vx: 0, vy: 0 });
+
+        x += t.width;
+      }
+    }
+  }
+
+  buildText();
+
+  // ----------------------------
+  // RESIZE + MODE SWITCH TRIGGER
+  // ----------------------------
+  window.addEventListener("resize", () => {
+
+    app.renderer.resize(window.innerWidth, window.innerHeight);
+
+    targetConfig = getConfig();
+
+    buildText();
+  });
+
+  // ----------------------------
+  // LOOP (SMOOTH CONFIG INTERPOLATION)
   // ----------------------------
   app.ticker.add(() => {
 
     time += reduceMotion ? 0.002 : 0.01;
 
-    const motionFactor = reduceMotion ? 0.15 : 1;
+    const motionFactor =
+      (reduceMotion ? 0.15 : 1) * config.motionIntensity;
 
-    smooth.x += (mouse.x - smooth.x) * (reduceMotion ? 0.05 : config.smoothing);
-    smooth.y += (mouse.y - smooth.y) * (reduceMotion ? 0.05 : config.smoothing);
+    smooth.x += (mouse.x - smooth.x) * config.smoothing;
+    smooth.y += (mouse.y - smooth.y) * config.smoothing;
+
+    // smooth config transitions
+    config.radius = lerp(config.radius, targetConfig.radius, 0.08);
+    config.push = lerp(config.push, targetConfig.push, 0.08);
+    config.scale = lerp(config.scale, targetConfig.scale, 0.08);
+    config.baseWarp = lerp(config.baseWarp, targetConfig.baseWarp, 0.08);
+    config.motionIntensity = lerp(
+      config.motionIntensity,
+      targetConfig.motionIntensity,
+      0.08
+    );
 
     for (let i = 0; i < chars.length; i++) {
 
       const c = chars[i];
       const d = data[i];
 
-      // ----------------------------
-      // BASE WARP
-      // ----------------------------
       const lineIndex = Math.floor(i / 40);
 
       const wave =
@@ -195,9 +296,6 @@
       const baseX = wave * 6 * config.baseWarp;
       const baseY = drift * config.baseWarp;
 
-      // ----------------------------
-      // CURSOR FORCE (always active)
-      // ----------------------------
       const fx = getForce(
         d.baseX - smooth.x,
         d.baseY - smooth.y
@@ -206,9 +304,6 @@
       d.vx += (fx.x - d.vx) * config.returnEase;
       d.vy += (fx.y - d.vy) * config.returnEase;
 
-      // ----------------------------
-      // FINAL POSITION
-      // ----------------------------
       c.x = d.baseX + d.vx + baseX;
       c.y = d.baseY + d.vy + baseY;
 
