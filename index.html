@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Apple Motion Typography (Clean)</title>
+  <title>Large Radius Apple Motion Typography</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -19,7 +18,6 @@
       overflow: hidden;
       height: 100%;
     }
-
     #container {
       width: 100%;
       height: 100%;
@@ -35,10 +33,8 @@
 <script>
 (async () => {
 
-  // ----------------------------
-  // ACCESSIBILITY
-  // ----------------------------
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduceMotion =
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   await document.fonts.load('64px "Instrument Serif"');
   await document.fonts.ready;
@@ -69,17 +65,14 @@
   const data = [];
 
   // ----------------------------
-  // LAYOUT SETTINGS (tighter spacing)
+  // LAYOUT (tighter spacing)
   // ----------------------------
-  const lineHeight = 70; // 👈 reduced spacing (Apple-style compact)
+  const lineHeight = 70;
 
   const startY =
     app.screen.height / 2 -
     ((lines.length - 1) * lineHeight) / 2;
 
-  // ----------------------------
-  // BUILD CENTERED TEXT
-  // ----------------------------
   for (let i = 0; i < lines.length; i++) {
 
     const line = lines[i];
@@ -134,29 +127,44 @@
   });
 
   // ----------------------------
-  // CONFIG (Apple-style tuned)
+  // CONFIG (BIG RADIUS VERSION)
   // ----------------------------
   const config = {
-    radius: 420,
-    push: 0.55,
-    scale: 0.6,
+    radius: 780,          // 🔥 BIGGER FIELD (was ~420)
+    push: 0.45,           // slightly softer for large radius
+    scale: 0.55,
     smoothing: 0.12,
     returnEase: 0.08,
     baseWarp: 0.18
   };
 
   // ----------------------------
-  // STRUCTURED BASE WARP (stable + aesthetic)
+  // STRUCTURED BASE WARP
   // ----------------------------
   function smoothWave(x, t) {
-    return Math.sin(x * 0.08 + t * 0.6) * 0.6 +
-           Math.sin(x * 0.02 + t * 0.3) * 0.4;
+    return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
+           Math.sin(x * 0.015 + t * 0.25) * 0.3;
   }
 
   let time = 0;
 
   // ----------------------------
-  // ANIMATION LOOP
+  // SHARED FORCE FUNCTION (IMPORTANT FIX)
+  // ----------------------------
+  function getForce(dx, dy, radius, push) {
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const norm = Math.min(dist / radius, 1);
+    const falloff = Math.pow(1 - norm, 3);
+
+    return {
+      x: dx * push * falloff,
+      y: dy * push * falloff,
+      falloff
+    };
+  }
+
+  // ----------------------------
+  // LOOP
   // ----------------------------
   app.ticker.add(() => {
 
@@ -173,7 +181,7 @@
       const d = data[i];
 
       // ----------------------------
-      // BASE WARP (structured motion field)
+      // BASE WARP
       // ----------------------------
       const lineIndex = Math.floor(i / 40);
 
@@ -181,27 +189,23 @@
         smoothWave(lineIndex * 10, time);
 
       const drift =
-        Math.sin(i * 0.12 + time) * 2;
+        Math.sin(i * 0.1 + time) * 2;
 
       const baseX = wave * 6 * config.baseWarp;
       const baseY = drift * config.baseWarp;
 
       // ----------------------------
-      // CURSOR FIELD
+      // CURSOR FIELD (USED FROM FRAME 0)
       // ----------------------------
-      const dx = d.baseX - smooth.x;
-      const dy = d.baseY - smooth.y;
+      const fx = getForce(
+        d.baseX - smooth.x,
+        d.baseY - smooth.y,
+        config.radius,
+        config.push
+      );
 
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      const norm = Math.min(dist / config.radius, 1);
-      const falloff = Math.pow(1 - norm, 3);
-
-      const tx = dx * config.push * falloff * motionFactor;
-      const ty = dy * config.push * falloff * motionFactor;
-
-      d.vx += (tx - d.vx) * config.returnEase;
-      d.vy += (ty - d.vy) * config.returnEase;
+      d.vx += (fx.x - d.vx) * config.returnEase;
+      d.vy += (fx.y - d.vy) * config.returnEase;
 
       // ----------------------------
       // FINAL POSITION
@@ -209,7 +213,7 @@
       c.x = d.baseX + d.vx + baseX;
       c.y = d.baseY + d.vy + baseY;
 
-      c.scale.set(1 + config.scale * falloff * motionFactor);
+      c.scale.set(1 + config.scale * fx.falloff * motionFactor);
 
       c.rotation = d.vx * 0.002 * motionFactor;
     }
