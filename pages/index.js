@@ -1,0 +1,162 @@
+import Head from 'next/head'
+import Script from 'next/script'
+
+function initAnimation() {
+  if (typeof window === 'undefined' || !window.PIXI) return;
+
+  (async () => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    await document.fonts.load('64px "Instrument Serif"');
+    await document.fonts.ready;
+
+    const app = new window.PIXI.Application({
+      resizeTo: window,
+      backgroundColor: 0xffffff,
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
+    });
+
+    document.getElementById('container').appendChild(app.view);
+
+    const lines = [
+      'Product & Design System Designer',
+      'Focused on scalable systems',
+      '& complex platforms.',
+    ];
+
+    const style = new window.PIXI.TextStyle({
+      fontFamily: 'Instrument Serif',
+      fontSize: 64,
+      fill: '#ff7730',
+    });
+
+    const chars = [];
+    const data = [];
+    const lineHeight = 70;
+    const startY = app.screen.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      let totalWidth = 0;
+      for (let c of line) {
+        const t = new window.PIXI.Text(c === ' ' ? ' ' : c, style);
+        totalWidth += t.width;
+      }
+
+      let x = app.screen.width / 2 - totalWidth / 2;
+      let y = startY + i * lineHeight;
+
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        const t = new window.PIXI.Text(char === ' ' ? ' ' : char, style);
+        t.x = x;
+        t.y = y;
+        app.stage.addChild(t);
+        chars.push(t);
+        data.push({ baseX: x, baseY: y, vx: 0, vy: 0 });
+        x += t.width;
+      }
+    }
+
+    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const smooth = { x: mouse.x, y: mouse.y };
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    const config = {
+      radius: 780,
+      push: 0.45,
+      scale: 0.55,
+      smoothing: 0.12,
+      returnEase: 0.08,
+      baseWarp: 0.18,
+    };
+
+    function smoothWave(x, t) {
+      return (
+        Math.sin(x * 0.06 + t * 0.5) * 0.7 +
+        Math.sin(x * 0.015 + t * 0.25) * 0.3
+      );
+    }
+
+    function getForce(dx, dy) {
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const norm = Math.min(dist / config.radius, 1);
+      const falloff = Math.pow(1 - norm, 3);
+      return { x: dx * config.push * falloff, y: dy * config.push * falloff, falloff };
+    }
+
+    let time = 0;
+
+    app.ticker.add(() => {
+      time += reduceMotion ? 0.002 : 0.01;
+      const motionFactor = reduceMotion ? 0.15 : 1;
+
+      smooth.x += (mouse.x - smooth.x) * (reduceMotion ? 0.05 : config.smoothing);
+      smooth.y += (mouse.y - smooth.y) * (reduceMotion ? 0.05 : config.smoothing);
+
+      for (let i = 0; i < chars.length; i++) {
+        const c = chars[i];
+        const d = data[i];
+
+        const lineIndex = Math.floor(i / 40);
+        const wave = smoothWave(lineIndex * 10, time);
+        const drift = Math.sin(i * 0.1 + time) * 2;
+
+        const baseX = wave * 6 * config.baseWarp;
+        const baseY = drift * config.baseWarp;
+
+        const fx = getForce(d.baseX - smooth.x, d.baseY - smooth.y);
+
+        d.vx += (fx.x - d.vx) * config.returnEase;
+        d.vy += (fx.y - d.vy) * config.returnEase;
+
+        c.x = d.baseX + d.vx + baseX;
+        c.y = d.baseY + d.vy + baseY;
+        c.scale.set(1 + config.scale * fx.falloff * motionFactor);
+        c.rotation = d.vx * 0.002 * motionFactor;
+      }
+    });
+  })();
+}
+
+export default function Home() {
+  return (
+    <>
+      <Head>
+        <title>Portfolio Hero Motion</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
+          rel="stylesheet"
+        />
+      </Head>
+      <Script
+        src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.0/dist/pixi.min.js"
+        onLoad={initAnimation}
+      />
+      <div id="container" />
+      <style jsx global>{`
+        html,
+        body {
+          margin: 0;
+          padding: 0;
+          background: #ffffff;
+          overflow: hidden;
+          height: 100%;
+        }
+        #container {
+          width: 100%;
+          height: 100%;
+        }
+      `}</style>
+    </>
+  );
+}
