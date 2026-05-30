@@ -42,15 +42,14 @@
 (async () => {
 
   // ----------------------------
-  // DEVICE MODE (MOBILE TRIGGER < 768px)
+  // SAFETY: FORCE TRANSPARENT PAGE
   // ----------------------------
-  function getDeviceMode() {
-    const w = window.innerWidth;
-    if (w < 768) return "mobile";
-    if (w < 1200) return "tablet";
-    return "desktop";
-  }
+  document.documentElement.style.background = "transparent";
+  document.body.style.background = "transparent";
 
+  // ----------------------------
+  // DEVICE SCALE SYSTEM
+  // ----------------------------
   function clamp(min, max, v) {
     return Math.max(min, Math.min(max, v));
   }
@@ -60,8 +59,17 @@
   }
 
   function getUIScale() {
-    const base = Math.min(window.innerWidth, window.innerHeight);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const base = Math.max(320, Math.min(w, h));
     return clamp(0.6, 1.4, base / 900);
+  }
+
+  function getDeviceMode() {
+    const w = window.innerWidth;
+    if (w < 768) return "mobile";
+    if (w < 1200) return "tablet";
+    return "desktop";
   }
 
   const reduceMotion =
@@ -71,7 +79,7 @@
   await document.fonts.ready;
 
   // ----------------------------
-  // PIXI SETUP (TRANSPARENT FIX)
+  // PIXI (TRUE TRANSPARENT)
   // ----------------------------
   const app = new PIXI.Application({
     resizeTo: window,
@@ -85,8 +93,11 @@
 
   document.getElementById("container").appendChild(app.view);
 
+  app.renderer.backgroundAlpha = 0;
+  app.renderer.backgroundColor = 0x000000;
+
   // ----------------------------
-  // TEXT DATA
+  // TEXT CONTENT
   // ----------------------------
   const lines = [
     "Product & Design System Designer",
@@ -94,12 +105,11 @@
     "& complex platforms."
   ];
 
+  // ----------------------------
+  // TYPOGRAPHY SYSTEM (FULLY RESPONSIVE)
+  // ----------------------------
   function getFontSize() {
     return clamp(22, 72, 64 * getUIScale());
-  }
-
-  function getLineHeight() {
-    return clamp(28, 92, 70 * getUIScale());
   }
 
   function getLetterSpacing() {
@@ -116,7 +126,20 @@
   }
 
   // ----------------------------
-  // CONFIG (PHYSICS SYSTEM)
+  // LINE HEIGHT (FIXED OPTICAL CENTERING)
+  // ----------------------------
+  function getLineMetrics() {
+    const style = createStyle();
+    const temp = new PIXI.Text("Mg", style);
+
+    const h = temp.height * 1.15; // optical correction
+    temp.destroy();
+
+    return h;
+  }
+
+  // ----------------------------
+  // PHYSICS CONFIG
   // ----------------------------
   let config = getConfig();
   let targetConfig = getConfig();
@@ -160,7 +183,7 @@
   }
 
   // ----------------------------
-  // POINTER SYSTEM (DESKTOP + MOBILE + AMBIENT)
+  // POINTER SYSTEM
   // ----------------------------
   const pointer = {
     x: window.innerWidth / 2,
@@ -204,7 +227,7 @@
   }
 
   // ----------------------------
-  // WARP HELPERS
+  // WARP FUNCTIONS
   // ----------------------------
   function smoothWave(x, t) {
     return Math.sin(x * 0.06 + t * 0.5) * 0.7 +
@@ -231,7 +254,7 @@
   let time = 0;
 
   // ----------------------------
-  // BUILD TEXT (FULLY CENTERED + SCALED)
+  // BUILD TEXT (FIXED CENTERING + SCALE)
   // ----------------------------
   function buildText() {
 
@@ -241,7 +264,7 @@
     data.length = 0;
 
     const style = createStyle();
-    const lineHeight = getLineHeight();
+    const lineHeight = getLineMetrics();
 
     const totalHeight = (lines.length - 1) * lineHeight;
 
@@ -286,7 +309,15 @@
   buildText();
 
   // ----------------------------
-  // RESIZE + REBUILD
+  // FIX: MOBILE FIRST-LOAD STABILITY
+  // ----------------------------
+  setTimeout(() => {
+    app.renderer.resize(window.innerWidth, window.innerHeight);
+    buildText();
+  }, 80);
+
+  // ----------------------------
+  // RESIZE HANDLER
   // ----------------------------
   window.addEventListener("resize", () => {
     app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -312,7 +343,6 @@
     smooth.x += (pointer.x - smooth.x) * config.smoothing;
     smooth.y += (pointer.y - smooth.y) * config.smoothing;
 
-    // smooth config transitions
     config.radius = lerp(config.radius, targetConfig.radius, 0.08);
     config.push = lerp(config.push, targetConfig.push, 0.08);
     config.scale = lerp(config.scale, targetConfig.scale, 0.08);
