@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Accessible Apple Motion Typography</title>
+  <title>Apple Motion Typography (Clean)</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -24,13 +24,6 @@
       width: 100%;
       height: 100%;
     }
-
-    /* Accessibility fallback */
-    @media (prefers-reduced-motion: reduce) {
-      canvas {
-        filter: none !important;
-      }
-    }
   </style>
 </head>
 
@@ -43,7 +36,7 @@
 (async () => {
 
   // ----------------------------
-  // ACCESSIBILITY CHECK
+  // ACCESSIBILITY
   // ----------------------------
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -76,12 +69,17 @@
   const data = [];
 
   // ----------------------------
-  // CENTERED LAYOUT (stable)
+  // LAYOUT SETTINGS (tighter spacing)
   // ----------------------------
-  const lineHeight = 92;
-  const startY =
-    app.screen.height / 2 - (lines.length * lineHeight) / 2;
+  const lineHeight = 70; // 👈 reduced spacing (Apple-style compact)
 
+  const startY =
+    app.screen.height / 2 -
+    ((lines.length - 1) * lineHeight) / 2;
+
+  // ----------------------------
+  // BUILD CENTERED TEXT
+  // ----------------------------
   for (let i = 0; i < lines.length; i++) {
 
     const line = lines[i];
@@ -97,6 +95,7 @@
     let y = startY + i * lineHeight;
 
     for (let j = 0; j < line.length; j++) {
+
       const char = line[j];
 
       const t = new PIXI.Text(char === " " ? " " : char, style);
@@ -135,7 +134,7 @@
   });
 
   // ----------------------------
-  // MOTION CONFIG
+  // CONFIG (Apple-style tuned)
   // ----------------------------
   const config = {
     radius: 420,
@@ -147,7 +146,7 @@
   };
 
   // ----------------------------
-  // IMPROVED BASE WARP (structured, Apple-style)
+  // STRUCTURED BASE WARP (stable + aesthetic)
   // ----------------------------
   function smoothWave(x, t) {
     return Math.sin(x * 0.08 + t * 0.6) * 0.6 +
@@ -157,13 +156,12 @@
   let time = 0;
 
   // ----------------------------
-  // LOOP
+  // ANIMATION LOOP
   // ----------------------------
   app.ticker.add(() => {
 
     time += reduceMotion ? 0.002 : 0.01;
 
-    // reduced motion mode → almost static
     const motionFactor = reduceMotion ? 0.15 : 1;
 
     smooth.x += (mouse.x - smooth.x) * (reduceMotion ? 0.05 : config.smoothing);
@@ -175,7 +173,7 @@
       const d = data[i];
 
       // ----------------------------
-      // BASE WARP (structured + coherent)
+      // BASE WARP (structured motion field)
       // ----------------------------
       const lineIndex = Math.floor(i / 40);
 
